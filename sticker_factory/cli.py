@@ -371,6 +371,82 @@ def migrate_sidecars(paths: tuple[str, ...], apply_changes: bool) -> None:
         click.echo(f"Dry-run complete. Matched={len(sidecars) - skipped - failed}, skipped={skipped}, failed={failed}.")
 
 
+@sticker.command("list")
+@click.option(
+    "--no-copy",
+    "no_copy",
+    is_flag=True,
+    default=False,
+    help="Only rows where copy_state=missing.",
+)
+@click.option(
+    "--unpublished",
+    is_flag=True,
+    default=False,
+    help="Only rows where publish_state!=published.",
+)
+@click.option(
+    "--needs-republish",
+    is_flag=True,
+    default=False,
+    help="Only rows where copy_revision > published_copy_revision.",
+)
+def list_design_rows(no_copy: bool, unpublished: bool, needs_republish: bool) -> None:
+    """List design rows from the DB with optional filters."""
+    from sticker_factory.db import init_db, list_designs
+
+    init_db()
+    rows = list_designs()
+
+    if no_copy:
+        rows = [row for row in rows if row.get("copy_state") == "missing"]
+    if unpublished:
+        rows = [row for row in rows if row.get("publish_state") != "published"]
+    if needs_republish:
+        rows = [
+            row
+            for row in rows
+            if int(row.get("copy_revision") or 0)
+            > int(row.get("published_copy_revision") or 0)
+        ]
+
+    if not rows:
+        click.echo("No rows found.")
+        return
+
+    header = (
+        f"{'id':>4}  {'concept':<20}  {'variation':<12}  "
+        f"{'copy':<7}  {'publish':<9}  {'sup':<3}  {'png_path'}"
+    )
+    click.echo(header)
+    click.echo("-" * len(header))
+    for row in rows:
+        concept = row.get("concept_id") or "-"
+        variation = row.get("variation_name") or "-"
+        png_path = row.get("png_path_canonical") or row.get("png_path") or "-"
+        click.echo(
+            f"{int(row['id']):>4}  {concept[:20]:<20}  {variation[:12]:<12}  "
+            f"{row.get('copy_state', '-')[:7]:<7}  {row.get('publish_state', '-')[:9]:<9}  "
+            f"{int(row.get('is_superseded') or 0):<3}  {png_path}"
+        )
+
+
+@sticker.command("show")
+@click.argument("design_id", type=int)
+def show_design_row(design_id: int) -> None:
+    """Show full detail for one DB design row."""
+    import json
+
+    from sticker_factory.db import get_design, init_db
+
+    init_db()
+    row = get_design(design_id)
+    if row is None:
+        click.echo(f"Design id {design_id} not found.")
+        raise SystemExit(1)
+    click.echo(json.dumps(row, indent=2, sort_keys=True))
+
+
 @sticker.command()
 @click.argument("design_id", required=False, type=int)
 @click.option(

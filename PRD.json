@@ -339,7 +339,7 @@
         "Add `sticker show <id>` command: full detail on one row",
         "Verify: list and show display correct data with filters working"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "dbflow-007",
