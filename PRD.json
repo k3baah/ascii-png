@@ -293,6 +293,19 @@
         "Verify: render populates variations, copywrite uses concept context in generated copy"
       ],
       "passes": false
+    },
+    {
+      "id": "backlog-013",
+      "category": "publishing",
+      "priority": 113,
+      "version": "backlog",
+      "description": "Variant pricing configuration -- set retail prices per variant size in config, apply during publish",
+      "steps": [
+        "Add pricing map to config.yaml keyed by variant size (2x2, 3x3, 4x4, 6x6)",
+        "Update publish command to match Printify variants to config prices by size",
+        "Verify: published products have correct retail prices per size variant"
+      ],
+      "passes": false
     }
   ]
 }

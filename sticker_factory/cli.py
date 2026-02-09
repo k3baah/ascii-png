@@ -198,6 +198,7 @@ def publish(
     printify_cfg = cfg.get("printify", {})
     shop_id = printify_cfg.get("shop_id", "25769339")
     print_provider_id = printify_cfg.get("print_provider_id", 1)
+    pricing = printify_cfg.get("pricing", {})
 
     if blueprint_id is None:
         blueprint_id = printify_cfg.get("default_blueprint_id", 600)
@@ -215,7 +216,7 @@ def publish(
     click.echo(f"Fetching variants for blueprint {blueprint_id}...")
     raw_variants = client.get_provider_variants(blueprint_id, print_provider_id)
 
-    # Filter variants by surface type and enable them
+    # Filter variants by surface type, set retail prices from config
     variants = []
     all_variant_ids = []
     for v in raw_variants:
@@ -225,11 +226,13 @@ def publish(
         v_surface = v.get("options", {}).get("surface", "")
         if v_surface.lower() != surface.lower():
             continue
+        v_size = v.get("options", {}).get("size", "")
+        price = pricing.get(v_size, 499)  # default $4.99 if size not in config
         all_variant_ids.append(vid)
         variants.append(
             {
                 "id": vid,
-                "price": v.get("price", 400),   # cents; fall back to $4.00
+                "price": price,
                 "is_enabled": True,
             }
         )
@@ -238,7 +241,10 @@ def publish(
         click.echo("Error: no variants found for this blueprint/provider combo.")
         raise SystemExit(1)
 
-    click.echo(f"  Found {len(variants)} variant(s)")
+    click.echo(f"  Found {len(variants)} variant(s):")
+    for v, rv in zip(variants, [r for r in raw_variants if r.get("options", {}).get("surface", "").lower() == surface.lower()]):
+        size = rv.get("options", {}).get("size", "?")
+        click.echo(f"    {size} @ ${v['price'] / 100:.2f}")
 
     # --- Step 3: Build print areas ------------------------------------------
     print_areas = [
