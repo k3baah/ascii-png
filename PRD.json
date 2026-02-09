@@ -306,7 +306,7 @@
         "Retire sidecar writes and add `sticker migrate-sidecars --dry-run|--apply` to import existing .copy.json content into DB without LLM regeneration",
         "Verify: copywrite updates copy fields/revision correctly and sidecar migration imports existing copy deterministically"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "dbflow-005",

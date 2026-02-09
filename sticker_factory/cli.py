@@ -175,26 +175,39 @@ def render(
 
 
 @sticker.command()
-@click.argument("paths", nargs=-1, required=True, type=click.Path(exists=True))
+@click.argument("paths", nargs=-1, required=False, type=click.Path(exists=True))
 @click.option(
     "--overwrite",
     is_flag=True,
     default=False,
-    help="Regenerate copy even if a sidecar file already exists.",
+    help="Regenerate copy even if DB copy already exists.",
 )
-def copywrite(paths: tuple[str, ...], overwrite: bool) -> None:
-    """Generate Etsy listing copy (title, description, tags) for sticker PNGs.
-
-    Accepts one or more PNG files or directories. Writes a .copy.json sidecar
-    next to each image.
-    """
-    from sticker_factory.copywriter import (
-        find_concept,
-        generate_copy,
-        read_sidecar,
-        write_sidecar,
+@click.option(
+    "--no-copy",
+    "no_copy",
+    is_flag=True,
+    default=False,
+    help="Process active DB rows where copy_state=missing.",
+)
+def copywrite(paths: tuple[str, ...], overwrite: bool, no_copy: bool) -> None:
+    """Generate Etsy listing copy and write it directly to DB rows."""
+    from sticker_factory.copywriter import find_concept, generate_copy
+    from sticker_factory.db import (
+        get_design_by_png_path,
+        init_db,
+        list_designs,
+        update_design,
     )
 
+    if not paths and not no_copy:
+        click.echo("Provide PNG path(s)/directory(ies), or use --no-copy.")
+        raise SystemExit(1)
+
+    init_db()
+
+    rows_to_process: dict[int, dict] = {}
+
+    # Mode 1: explicit files/directories resolved to DB rows by png path.
     png_files: list[Path] = []
     for p in paths:
         path = Path(p)
@@ -205,34 +218,157 @@ def copywrite(paths: tuple[str, ...], overwrite: bool) -> None:
         else:
             click.echo(f"Skipping non-PNG: {path}")
 
-    if not png_files:
-        click.echo("No PNG files found.")
-        raise SystemExit(1)
-
-    click.echo(f"Processing {len(png_files)} image(s)...")
     for png_path in png_files:
-        if not overwrite and read_sidecar(png_path) is not None:
-            click.echo(f"  {png_path.name}: sidecar exists, skipping (use --overwrite)")
+        row = get_design_by_png_path(png_path, include_superseded=False)
+        if row is None:
+            click.echo(f"  {png_path.name}: no active DB row found, skipping")
+            continue
+        rows_to_process[int(row["id"])] = row
+
+    # Mode 2: select missing-copy rows from DB.
+    if no_copy:
+        for row in list_designs(copy_state="missing", is_superseded=0):
+            rows_to_process[int(row["id"])] = row
+
+    if not rows_to_process:
+        click.echo("No DB rows selected for copywriting.")
+        return
+
+    click.echo(f"Processing {len(rows_to_process)} design row(s)...")
+    success = 0
+    errors = 0
+    skipped = 0
+
+    for row_id in sorted(rows_to_process):
+        row = rows_to_process[row_id]
+        png_path = row.get("png_path_canonical") or row.get("png_path")
+        if not png_path:
+            click.echo(f"  id={row_id}: missing png_path, skipping")
+            skipped += 1
             continue
 
-        concept = find_concept(png_path)
-        if concept:
-            click.echo(f"  {png_path.name}: found concept '{concept.get('id')}', generating copy...")
-        else:
-            click.echo(f"  {png_path.name}: no concept file found, generating copy from image only...")
+        image_path = Path(png_path)
+        if not image_path.exists():
+            click.echo(f"  id={row_id}: PNG not found on disk, skipping ({image_path})")
+            skipped += 1
+            continue
+
+        if not overwrite and row.get("copy_state") == "ready":
+            click.echo(f"  id={row_id}: copy already ready, skipping (use --overwrite)")
+            skipped += 1
+            continue
+
+        concept = find_concept(image_path)
+        context_note = (
+            f"concept '{concept.get('id')}'" if concept else "image-only context"
+        )
+        click.echo(f"  id={row_id}: generating copy ({context_note})...")
 
         try:
-            copy = generate_copy(png_path, concept=concept)
+            copy = generate_copy(image_path, concept=concept)
+            current_revision = int(row.get("copy_revision") or 0)
+            update_design(
+                row_id,
+                listing_title=copy["title"],
+                listing_description=copy["description"],
+                listing_tags=copy["tags"],
+                copy_state="ready",
+                copy_revision=current_revision + 1,
+                last_error=None,
+            )
+            click.echo(f"    Title: {copy['title']}")
+            click.echo(f"    Tags:  {', '.join(copy['tags'][:5])}...")
+            success += 1
         except Exception as exc:
+            update_design(row_id, copy_state="error", last_error=str(exc))
             click.echo(f"    ERROR: {exc}")
+            errors += 1
+
+    click.echo(
+        f"Done. Updated={success}, skipped={skipped}, errors={errors}."
+    )
+
+
+@sticker.command("migrate-sidecars")
+@click.argument("paths", nargs=-1, required=False, type=click.Path(exists=True))
+@click.option(
+    "--apply/--dry-run",
+    "apply_changes",
+    default=False,
+    show_default=True,
+    help="Apply DB updates, or preview what would change.",
+)
+def migrate_sidecars(paths: tuple[str, ...], apply_changes: bool) -> None:
+    """Import existing .copy.json files into DB copy columns."""
+    import json
+
+    from sticker_factory.db import get_design_by_png_path, init_db, update_design
+
+    init_db()
+
+    search_targets = [Path(p) for p in paths] if paths else [Path("exports")]
+    sidecars: list[Path] = []
+    for target in search_targets:
+        if target.is_dir():
+            sidecars.extend(sorted(target.rglob("*.copy.json")))
+        elif target.is_file() and target.name.endswith(".copy.json"):
+            sidecars.append(target)
+
+    if not sidecars:
+        click.echo("No sidecar files found.")
+        return
+
+    click.echo(
+        f"{'Applying' if apply_changes else 'Dry-run'} import for {len(sidecars)} sidecar file(s)..."
+    )
+
+    updated = 0
+    skipped = 0
+    failed = 0
+    for sidecar_path in sidecars:
+        if not sidecar_path.name.endswith(".copy.json"):
+            skipped += 1
             continue
 
-        sidecar = write_sidecar(png_path, copy)
-        click.echo(f"    Title: {copy['title']}")
-        click.echo(f"    Tags:  {', '.join(copy['tags'][:5])}...")
-        click.echo(f"    Saved: {sidecar}")
+        png_name = f"{sidecar_path.name[:-10]}.png"
+        png_path = sidecar_path.with_name(png_name)
+        row = get_design_by_png_path(png_path, include_superseded=False)
+        if row is None:
+            click.echo(f"  {sidecar_path}: no active DB row for {png_name}, skipping")
+            skipped += 1
+            continue
 
-    click.echo("Done.")
+        try:
+            with open(sidecar_path) as f:
+                copy = json.load(f)
+            title = copy["title"]
+            description = copy["description"]
+            tags = copy["tags"]
+            if not isinstance(tags, list):
+                raise ValueError("tags must be a JSON list")
+        except Exception as exc:
+            click.echo(f"  {sidecar_path}: invalid sidecar ({exc})")
+            failed += 1
+            continue
+
+        current_revision = int(row.get("copy_revision") or 0)
+        click.echo(f"  {sidecar_path.name} -> design_id={row['id']}")
+        if apply_changes:
+            update_design(
+                int(row["id"]),
+                listing_title=title,
+                listing_description=description,
+                listing_tags=tags,
+                copy_state="ready",
+                copy_revision=current_revision + 1,
+                last_error=None,
+            )
+            updated += 1
+
+    if apply_changes:
+        click.echo(f"Done. Updated={updated}, skipped={skipped}, failed={failed}.")
+    else:
+        click.echo(f"Dry-run complete. Matched={len(sidecars) - skipped - failed}, skipped={skipped}, failed={failed}.")
 
 
 @sticker.command()
