@@ -657,9 +657,9 @@ def publish(
 
         if not publish_ready:
             if republish:
-                if row_publish_state not in {"uploaded", "published"}:
+                if row_publish_state not in {"uploaded", "published", "deleted"}:
                     click.echo(
-                        f"  id={row_id}: --republish requires current publish_state uploaded/published."
+                        f"  id={row_id}: --republish requires publish_state uploaded/published/deleted."
                     )
                     raise SystemExit(1)
             elif row_publish_state != "never":

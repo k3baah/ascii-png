@@ -235,7 +235,7 @@ class PrintifyClient:
         )
         return product
 
-    def list_products(self, shop_id: str, page: int = 1, limit: int = 100) -> dict | list:
+    def list_products(self, shop_id: str, page: int = 1, limit: int = 50) -> dict | list:
         """Fetch one page of products for a Printify shop."""
         resp = self._get(f"shops/{shop_id}/products.json?page={page}&limit={limit}")
         data = resp.json()
@@ -247,7 +247,7 @@ class PrintifyClient:
         )
         return data
 
-    def list_all_products(self, shop_id: str, limit: int = 100) -> list[dict]:
+    def list_all_products(self, shop_id: str, limit: int = 50) -> list[dict]:
         """Fetch all products in a Printify shop, handling pagination."""
         page = 1
         products: list[dict] = []

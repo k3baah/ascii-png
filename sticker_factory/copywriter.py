@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 from pathlib import Path
 
 import anthropic
+from PIL import Image
 
 from sticker_factory.config import get_config
 from sticker_factory.concepts import load_concept
@@ -131,11 +133,19 @@ def generate_copy(image_path: Path, concept: dict | None = None) -> dict:
             "No Anthropic API key. Set ANTHROPIC_API_KEY in .env."
         )
 
-    with open(image_path, "rb") as f:
-        image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+    # Downscale for Claude Vision — only needs to see the design, not full print res
+    max_dim = 1024
+    img = Image.open(image_path)
+    if max(img.size) > max_dim:
+        scale = max_dim / max(img.size)
+        new_size = (int(img.width * scale), int(img.height * scale))
+        logger.info("Resizing %s from %s to %s for API", image_path.name, img.size, new_size)
+        img = img.resize(new_size, Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    image_data = base64.standard_b64encode(buf.getvalue()).decode("utf-8")
 
-    suffix = image_path.suffix.lower()
-    media_type = "image/png" if suffix == ".png" else f"image/{suffix.lstrip('.')}"
+    media_type = "image/png"
 
     user_prompt = _build_user_prompt(concept)
 
