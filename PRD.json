@@ -291,7 +291,7 @@
         "--force flag: re-render all variations, mark prior active rows is_superseded=1, insert fresh active rows",
         "Verify: render creates correct DB rows, re-render without --force is a no-op, --force supersedes old rows"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "dbflow-004",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -61,7 +62,7 @@ LEGACY_COLUMNS = {
 
 def _get_connection(db_path: str | Path | None = None) -> sqlite3.Connection:
     """Return a sqlite3 connection with row_factory set."""
-    db_path = db_path or DEFAULT_DB_PATH
+    db_path = db_path or os.getenv("STICKER_FACTORY_DB_PATH") or DEFAULT_DB_PATH
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     return conn
@@ -540,6 +541,29 @@ def get_design_by_png_path(
             query += " AND is_superseded = 0"
         query += " ORDER BY created_at DESC LIMIT 1"
         row = conn.execute(query, tuple(params)).fetchone()
+        if row is None:
+            return None
+        return _serialize_row(row)
+    finally:
+        conn.close()
+
+
+def get_active_design_by_key(
+    design_key: str,
+    db_path: str | Path | None = None,
+) -> dict[str, Any] | None:
+    """Retrieve the active (non-superseded) row for a design key."""
+    conn = _get_connection(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT * FROM designs
+            WHERE design_key = ? AND is_superseded = 0
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (design_key,),
+        ).fetchone()
         if row is None:
             return None
         return _serialize_row(row)
