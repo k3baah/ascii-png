@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 @click.group()
 def sticker() -> None:
-    """Sticker Factory -- ASCII art to print-ready PNG pipeline."""
+    """Sticker Factory CLI -- DB-first render/copywrite/publish pipeline."""
 
 
 @sticker.command()
