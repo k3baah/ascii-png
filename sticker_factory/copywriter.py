@@ -135,12 +135,22 @@ def generate_copy(image_path: Path, concept: dict | None = None) -> dict:
 
     # Downscale for Claude Vision — only needs to see the design, not full print res
     max_dim = 1024
-    img = Image.open(image_path)
-    if max(img.size) > max_dim:
-        scale = max_dim / max(img.size)
-        new_size = (int(img.width * scale), int(img.height * scale))
-        logger.info("Resizing %s from %s to %s for API", image_path.name, img.size, new_size)
-        img = img.resize(new_size, Image.LANCZOS)
+    with Image.open(image_path) as opened:
+        if max(opened.size) > max_dim:
+            scale = max_dim / max(opened.size)
+            new_size = (
+                max(1, int(round(opened.width * scale))),
+                max(1, int(round(opened.height * scale))),
+            )
+            logger.info(
+                "Resizing %s from %s to %s for API",
+                image_path.name,
+                opened.size,
+                new_size,
+            )
+            img = opened.resize(new_size, Image.LANCZOS)
+        else:
+            img = opened.copy()
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     image_data = base64.standard_b64encode(buf.getvalue()).decode("utf-8")
