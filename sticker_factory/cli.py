@@ -372,16 +372,19 @@ def migrate_sidecars(paths: tuple[str, ...], apply_changes: bool) -> None:
 
 
 @sticker.command()
-@click.argument("png_file", type=click.Path(exists=True, dir_okay=False))
+@click.argument("design_id", required=False, type=int)
 @click.option(
-    "--title",
-    default=None,
-    help="Product title (default: derived from filename).",
+    "--ready",
+    "publish_ready",
+    is_flag=True,
+    default=False,
+    help="Batch publish rows with copy_state=ready and publish_state=never.",
 )
 @click.option(
-    "--description",
-    default=None,
-    help="Product description (default: a generic sticker description).",
+    "--republish",
+    is_flag=True,
+    default=False,
+    help="Allow publishing a specific row again if it is already uploaded/published.",
 )
 @click.option(
     "--blueprint-id",
@@ -403,39 +406,43 @@ def migrate_sidecars(paths: tuple[str, ...], apply_changes: bool) -> None:
     help="Also publish to Etsy (default: Printify only).",
 )
 def publish(
-    png_file: str,
-    title: str | None,
-    description: str | None,
+    design_id: int | None,
+    publish_ready: bool,
+    republish: bool,
     blueprint_id: int | None,
     surface: str,
     etsy: bool,
 ) -> None:
-    """Upload a PNG sticker design to Printify. Use --etsy to also publish to Etsy."""
-    from sticker_factory.copywriter import read_sidecar
-    from sticker_factory.db import init_db, insert_design, update_design
+    """Publish DB-backed design rows to Printify (and optionally Etsy)."""
+    from sticker_factory.db import get_design, init_db, list_designs, update_design
     from sticker_factory.publisher import PrintifyClient
 
-    png_path = Path(png_file)
+    if publish_ready and design_id is not None:
+        click.echo("Use either a specific <design_id> or --ready, not both.")
+        raise SystemExit(1)
+    if not publish_ready and design_id is None:
+        click.echo("Provide <design_id> or use --ready for batch publish.")
+        raise SystemExit(1)
+    if publish_ready and republish:
+        click.echo("--republish is only supported with a specific <design_id>.")
+        raise SystemExit(1)
 
-    # --- Defaults: sidecar > filename-derived > generic ---------------------
-    sidecar = read_sidecar(png_path)
-
-    if title is None:
-        if sidecar and sidecar.get("title"):
-            title = sidecar["title"]
-            click.echo(f"Using title from sidecar: {title}")
-        else:
-            title = png_path.stem.replace("_", " ").replace("-", " ").title()
-
-    if description is None:
-        if sidecar and sidecar.get("description"):
-            description = sidecar["description"]
-            click.echo("Using description from sidecar.")
-        else:
-            description = (
-                f"<p>High-quality die-cut sticker printed on durable vinyl.</p>"
-                f"<p>{title} -- perfect for laptops, water bottles, and notebooks.</p>"
-            )
+    init_db()
+    if publish_ready:
+        rows = list_designs(
+            copy_state="ready",
+            publish_state="never",
+            is_superseded=0,
+        )
+        if not rows:
+            click.echo("No ready rows found for batch publish.")
+            return
+    else:
+        row = get_design(design_id)
+        if row is None:
+            click.echo(f"Design id {design_id} not found.")
+            raise SystemExit(1)
+        rows = [row]
 
     cfg = get_config()
     printify_cfg = cfg.get("printify", {})
@@ -446,16 +453,8 @@ def publish(
     if blueprint_id is None:
         blueprint_id = printify_cfg.get("default_blueprint_id", 600)
 
-    # --- Init DB & Printify client -----------------------------------------
-    init_db()
     client = PrintifyClient()
 
-    # --- Step 1: Upload image to Printify -----------------------------------
-    click.echo(f"Uploading {png_path.name} to Printify...")
-    image_id = client.upload_image(png_path, png_path.name)
-    click.echo(f"  Image uploaded (ID: {image_id})")
-
-    # --- Step 2: Fetch variants for blueprint + provider --------------------
     click.echo(f"Fetching variants for blueprint {blueprint_id}...")
     raw_variants = client.get_provider_variants(blueprint_id, print_provider_id)
 
@@ -484,67 +483,115 @@ def publish(
         click.echo("Error: no variants found for this blueprint/provider combo.")
         raise SystemExit(1)
 
-    click.echo(f"  Found {len(variants)} variant(s):")
-    for v, rv in zip(variants, [r for r in raw_variants if r.get("options", {}).get("surface", "").lower() == surface.lower()]):
-        size = rv.get("options", {}).get("size", "?")
-        click.echo(f"    {size} @ ${v['price'] / 100:.2f}")
+    click.echo(f"Publishing {len(rows)} row(s)...")
+    published = 0
+    skipped = 0
+    errored = 0
 
-    # --- Step 3: Build print areas ------------------------------------------
-    print_areas = [
-        {
-            "variant_ids": all_variant_ids,
-            "placeholders": [
+    for row in rows:
+        row_id = int(row["id"])
+        row_publish_state = row.get("publish_state") or "never"
+        row_copy_state = row.get("copy_state") or "missing"
+        title = row.get("listing_title")
+        description = row.get("listing_description")
+        png_path_value = row.get("png_path_canonical") or row.get("png_path")
+
+        if row.get("is_superseded"):
+            click.echo(f"  id={row_id}: superseded row, skipping")
+            skipped += 1
+            continue
+
+        if row_copy_state != "ready" or not title or not description:
+            message = "copy not ready (run copywrite first)"
+            click.echo(f"  id={row_id}: {message}")
+            if publish_ready:
+                skipped += 1
+                continue
+            raise SystemExit(1)
+
+        if not publish_ready:
+            if republish:
+                if row_publish_state not in {"uploaded", "published"}:
+                    click.echo(
+                        f"  id={row_id}: --republish requires current publish_state uploaded/published."
+                    )
+                    raise SystemExit(1)
+            elif row_publish_state != "never":
+                click.echo(
+                    f"  id={row_id}: publish_state is '{row_publish_state}'. Use --republish to override."
+                )
+                raise SystemExit(1)
+
+        if not png_path_value:
+            message = "missing png_path in DB row"
+            update_design(row_id, publish_state="error", last_error=message)
+            click.echo(f"  id={row_id}: {message}")
+            errored += 1
+            continue
+
+        png_path = Path(png_path_value)
+        if not png_path.exists():
+            message = f"PNG not found: {png_path}"
+            update_design(row_id, publish_state="error", last_error=message)
+            click.echo(f"  id={row_id}: {message}")
+            errored += 1
+            continue
+
+        try:
+            click.echo(f"  id={row_id}: uploading {png_path.name}...")
+            image_id = client.upload_image(png_path, png_path.name)
+
+            print_areas = [
                 {
-                    "position": "front",
-                    "images": [
+                    "variant_ids": all_variant_ids,
+                    "placeholders": [
                         {
-                            "id": image_id,
-                            "x": 0.5,
-                            "y": 0.5,
-                            "scale": 1,
-                            "angle": 0,
+                            "position": "front",
+                            "images": [
+                                {
+                                    "id": image_id,
+                                    "x": 0.5,
+                                    "y": 0.5,
+                                    "scale": 1,
+                                    "angle": 0,
+                                }
+                            ],
                         }
                     ],
                 }
-            ],
-        }
-    ]
+            ]
 
-    # --- Step 4: Create product on Printify ---------------------------------
-    click.echo(f"Creating product '{title}' on Printify...")
-    product = client.create_product(
-        shop_id=shop_id,
-        title=title,
-        description=description,
-        blueprint_id=blueprint_id,
-        print_provider_id=print_provider_id,
-        variants=variants,
-        print_areas=print_areas,
-    )
-    product_id = product["id"]
-    click.echo(f"  Product created (ID: {product_id})")
+            click.echo(f"  id={row_id}: creating Printify product...")
+            product = client.create_product(
+                shop_id=shop_id,
+                title=title,
+                description=description,
+                blueprint_id=blueprint_id,
+                print_provider_id=print_provider_id,
+                variants=variants,
+                print_areas=print_areas,
+            )
+            product_id = str(product["id"])
+            new_publish_state = "uploaded"
+            if etsy:
+                click.echo(f"  id={row_id}: publishing product to Etsy...")
+                client.publish_product(shop_id, product_id)
+                new_publish_state = "published"
 
-    # --- Step 5: Optionally publish to Etsy ----------------------------------
-    status = "uploaded"
-    if etsy:
-        click.echo("Publishing product to Etsy...")
-        client.publish_product(shop_id, product_id)
-        click.echo("  Product published to Etsy!")
-        status = "published"
-    else:
-        click.echo("  Product created on Printify (not published to Etsy).")
-        click.echo("  Use --etsy flag to also publish to Etsy.")
+            update_design(
+                row_id,
+                printify_product_id=product_id,
+                publish_state=new_publish_state,
+                published_copy_revision=int(row.get("copy_revision") or 0),
+                last_error=None,
+            )
+            click.echo(
+                f"  id={row_id}: success (product_id={product_id}, state={new_publish_state})"
+            )
+            published += 1
+        except Exception as exc:
+            update_design(row_id, publish_state="error", last_error=str(exc))
+            click.echo(f"  id={row_id}: ERROR {exc}")
+            errored += 1
 
-    # --- Step 6: Store in DB ------------------------------------------------
-    design_id = insert_design(
-        concept_title=title,
-        png_file_paths=[str(png_path.resolve())],
-        status=status,
-        printify_product_id=str(product_id),
-    )
-    click.echo(f"  Design saved to DB (ID: {design_id})")
-
-    click.echo()
-    click.echo(f"Done! Product '{title}' on Printify.")
-    click.echo(f"  Printify product ID: {product_id}")
-    click.echo(f"  Design DB ID:        {design_id}")
+    click.echo(f"Done. Published={published}, skipped={skipped}, errors={errored}.")

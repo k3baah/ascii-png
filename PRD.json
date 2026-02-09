@@ -323,7 +323,7 @@
         "--etsy/--no-etsy flag controls whether to push to Etsy (default: Printify only)",
         "Verify: publish reads from DB, rejects rows without copy, batch mode works"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "dbflow-006",
