@@ -168,6 +168,9 @@ Volume (ideas_per_run) is configurable.
 
 ## DB-First Publish Flow (v2 Data Model)
 
+Operational run commands for this flow are documented in:
+`docs/db-first-publish-flow.md`
+
 ### Principles
 
 - **DB is the single source of truth** for operational/publishing state.
