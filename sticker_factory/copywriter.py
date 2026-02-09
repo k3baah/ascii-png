@@ -10,6 +10,7 @@ from pathlib import Path
 import anthropic
 
 from sticker_factory.config import get_config
+from sticker_factory.concepts import load_concept
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +78,12 @@ def find_concept(image_path: Path) -> dict | None:
     best_len = 0
 
     for concept_file in concepts_dir.glob("*.json"):
-        with open(concept_file) as f:
-            concept = json.load(f)
+        try:
+            concept = load_concept(concept_file)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.warning("Skipping invalid concept file %s: %s", concept_file, exc)
+            continue
+
         concept_id = concept.get("id", concept_file.stem)
         if stem.startswith(concept_id) and len(concept_id) > best_len:
             best_match = concept

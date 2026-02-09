@@ -275,7 +275,7 @@
         "Concept files are human-editable input; DB references them via concept_id but does not duplicate content",
         "Verify: concept files load correctly and variations array is parseable"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "dbflow-003",
