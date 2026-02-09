@@ -42,6 +42,9 @@ def render(ascii_file: str, output_dir: str, name: str | None) -> None:
     color_schemes = rendering.get("color_schemes", [])
     font_size = rendering.get("font_size", 300)
     padding = rendering.get("padding", 40)
+    fill_gaps = rendering.get("fill_gaps", True)
+    fill_gaps_alpha_threshold = rendering.get("fill_gaps_alpha_threshold", 1)
+    fill_gaps_bridge_radius_px = rendering.get("fill_gaps_bridge_radius_px", 0)
 
     if not color_schemes:
         click.echo("No color_schemes defined in config.yaml. Nothing to render.")
@@ -54,6 +57,9 @@ def render(ascii_file: str, output_dir: str, name: str | None) -> None:
         color_schemes=color_schemes,
         font_size=font_size,
         padding=padding,
+        fill_gaps=fill_gaps,
+        fill_gaps_alpha_threshold=fill_gaps_alpha_threshold,
+        fill_gaps_bridge_radius_px=fill_gaps_bridge_radius_px,
     )
 
     click.echo(f"Rendered {len(paths)} variation(s):")

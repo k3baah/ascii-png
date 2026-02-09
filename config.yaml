@@ -8,6 +8,8 @@ rendering:
   font_size: 300
   padding: 40
   default_background: "transparent"
+  fill_gaps: true
+  fill_gaps_alpha_threshold: 1
   color_schemes:
     - { name: "classic", fg: "white", bg: "black" }
     - { name: "matrix", fg: "#00ff00", bg: "transparent" }
