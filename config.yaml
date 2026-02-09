@@ -1,0 +1,18 @@
+niche: "developer and tech culture"
+ideation:
+  model: "claude-sonnet-4-5-20250929"
+  ideas_per_run: 3
+ascii_generation:
+  model: "claude-sonnet-4-5-20250929"
+rendering:
+  font_size: 300
+  padding: 40
+  default_background: "white"
+  color_schemes:
+    - { name: "classic", fg: "white", bg: "black" }
+    - { name: "matrix", fg: "#00ff00", bg: "transparent" }
+    - { name: "sunset", fg: "#ff6b35", bg: "transparent" }
+printify:
+  shop_id: "25769339"
+  default_blueprint_id: 600        # Die-Cut Stickers
+  print_provider_id: 73            # Printed Simply

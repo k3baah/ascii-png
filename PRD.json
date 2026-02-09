@@ -1,0 +1,251 @@
+{
+  "features": [
+    {
+      "id": "v0-001",
+      "category": "scaffold",
+      "priority": 1,
+      "version": "v0",
+      "description": "Project scaffold -- set up the sticker_factory/ package with all module files and update requirements.txt",
+      "steps": [
+        "Create sticker_factory/ directory with __init__.py, config.py, db.py, models.py, renderer.py, publisher.py, cli.py, ideation.py, ascii_gen.py",
+        "Create config.yaml with niche, ideation, ascii_generation, and rendering sections per SPEC.md",
+        "Update requirements.txt with all needed dependencies (Pillow, click, pyyaml, python-dotenv, requests)",
+        "Verify: `python -c \"import sticker_factory\"` succeeds"
+      ],
+      "passes": true
+    },
+    {
+      "id": "v0-002",
+      "category": "config",
+      "priority": 2,
+      "version": "v0",
+      "description": "Config loading -- load YAML config file and .env secrets into a unified config object",
+      "steps": [
+        "Implement config.py to load config.yaml using PyYAML",
+        "Load .env secrets using python-dotenv (ANTHROPIC_API_KEY, PRINTIFY_API_KEY)",
+        "Provide a get_config() function that returns the merged config",
+        "Verify: loading config.yaml returns expected niche, rendering, and ideation settings",
+        "Verify: missing .env does not crash (secrets are optional until needed)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "v0-003",
+      "category": "database",
+      "priority": 3,
+      "version": "v0",
+      "description": "SQLite schema -- create the designs table with all columns from SPEC.md",
+      "steps": [
+        "Implement db.py with init_db() that creates the designs table",
+        "Columns: id (INTEGER PK), concept_title (TEXT), concept_brief (TEXT), ascii_art (TEXT), ascii_file_path (TEXT), png_file_paths (JSON), colors (JSON), status (TEXT), printify_product_id (TEXT), etsy_listing_url (TEXT), created_at (DATETIME), updated_at (DATETIME)",
+        "Provide helper functions: insert_design, get_design, update_design, list_designs",
+        "Verify: init_db() creates the table, insert and retrieve a row successfully"
+      ],
+      "passes": true
+    },
+    {
+      "id": "v0-004",
+      "category": "models",
+      "priority": 4,
+      "version": "v0",
+      "description": "Data models -- Python dataclasses for Design matching the SQLite schema",
+      "steps": [
+        "Implement models.py with a Design dataclass",
+        "Fields match the designs table columns",
+        "Include from_row() classmethod to construct from a DB row",
+        "Include to_dict() method for serialization",
+        "Verify: can create a Design instance, round-trip through to_dict() and from_row()"
+      ],
+      "passes": true
+    },
+    {
+      "id": "v0-005",
+      "category": "rendering",
+      "priority": 5,
+      "version": "v0",
+      "description": "Renderer -- refactor ascii2png.py into the renderer module with print-quality sizing",
+      "steps": [
+        "Move core rendering logic from ascii2png.py into sticker_factory/renderer.py",
+        "Support configurable font size (200-400px), padding, and background color (white default)",
+        "render_ascii_to_png(ascii_text, output_path, font_size, padding, fg_color, bg_color) function",
+        "Output PNGs at print quality (2000-4000px on longest side)",
+        "Verify: render a sample ASCII art file to PNG, confirm output dimensions are in print-quality range"
+      ],
+      "passes": true
+    },
+    {
+      "id": "v0-006",
+      "category": "rendering",
+      "priority": 6,
+      "version": "v0",
+      "description": "Color variations -- render the same ASCII design in multiple color schemes from config",
+      "steps": [
+        "Implement render_variations(ascii_text, output_dir, design_name, color_schemes) in renderer.py",
+        "Read color_schemes from config.yaml (each has name, fg, bg)",
+        "Output one PNG per color scheme, named like {design_name}_{scheme_name}.png",
+        "Verify: given 3 color schemes, produces 3 distinct PNG files with correct colors"
+      ],
+      "passes": true
+    },
+    {
+      "id": "v0-007",
+      "category": "cli",
+      "priority": 7,
+      "version": "v0",
+      "description": "CLI entry point -- `sticker` command with subcommands using click or argparse",
+      "steps": [
+        "Implement cli.py with a main command group and subcommands: render, publish, review",
+        "render subcommand: takes an ASCII file path, renders to PNG (with color variations)",
+        "Wire up CLI as a console_scripts entry point or a __main__.py so `python -m sticker_factory` works",
+        "Verify: `python -m sticker_factory render designs/vibe-coder.txt` produces PNGs in exports/"
+      ],
+      "passes": true
+    },
+    {
+      "id": "v0-008",
+      "category": "publishing",
+      "priority": 8,
+      "version": "v0",
+      "description": "Printify API client -- basic API wrapper for authentication, creating products, and uploading images",
+      "steps": [
+        "Implement publisher.py with a PrintifyClient class",
+        "Methods: upload_image(image_path) -> image_id, create_product(title, image_id, blueprint_id) -> product_id",
+        "Use PRINTIFY_API_KEY from config/env",
+        "Handle HTTP errors gracefully with logging",
+        "Verify: class instantiates, methods exist with correct signatures (live API test deferred until key is set up)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "v0-009",
+      "category": "publishing",
+      "priority": 9,
+      "version": "v0",
+      "description": "Publish command -- CLI subcommand to take a rendered PNG and publish it to Printify as a sticker product",
+      "steps": [
+        "Add publish subcommand to CLI: takes a design ID or PNG path",
+        "Uploads image to Printify, creates a product, stores product ID in DB",
+        "Updates design status to 'published'",
+        "Verify: command runs without error when given valid inputs (end-to-end test deferred until API key exists)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "backlog-001",
+      "category": "ideation",
+      "priority": 101,
+      "version": "backlog",
+      "description": "LLM ideation -- Claude API generates concept briefs (title, description, style hints, colors)",
+      "steps": [
+        "Implement ideation.py with generate_concepts(niche, count) using Claude API",
+        "Store generated concepts in SQLite with status 'ideated'",
+        "Verify: generates expected number of concept briefs with required fields"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-002",
+      "category": "ascii-generation",
+      "priority": 102,
+      "version": "backlog",
+      "description": "LLM ASCII generation -- Claude API generates ASCII art from concept briefs",
+      "steps": [
+        "Implement ascii_gen.py with generate_ascii(concept_brief) using Claude API",
+        "Save generated ASCII art to designs/ directory and update DB",
+        "Verify: given a concept brief, produces valid ASCII art text"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-003",
+      "category": "rendering",
+      "priority": 103,
+      "version": "backlog",
+      "description": "AI image generation (GPT/Gemini) -- v2 design method using image generation APIs",
+      "steps": [
+        "Add image generation support via ChatGPT image API or Gemini Imagen",
+        "Integrate as alternative to ASCII-to-PNG rendering pipeline",
+        "Verify: generates a sticker design image from a concept brief"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-004",
+      "category": "rendering",
+      "priority": 104,
+      "version": "backlog",
+      "description": "Sticker sheet composition -- arrange multiple stickers on a single printable sheet",
+      "steps": [
+        "Implement sheet layout logic to tile multiple sticker PNGs onto one sheet",
+        "Configurable sheet size, sticker spacing, and arrangement",
+        "Verify: produces a composite PNG with multiple stickers arranged correctly"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-005",
+      "category": "pipeline",
+      "priority": 105,
+      "version": "backlog",
+      "description": "Chain pipeline together -- `sticker run` command that executes ideate -> generate -> render -> review -> publish",
+      "steps": [
+        "Implement run subcommand in cli.py that chains all pipeline steps",
+        "Pause for manual review step unless --auto flag is passed",
+        "Verify: full pipeline runs end-to-end from ideation to publishing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-006",
+      "category": "infra",
+      "priority": 106,
+      "version": "backlog",
+      "description": "Cloud deployment + cron scheduling -- deploy pipeline to run on a schedule",
+      "steps": [
+        "Containerize the pipeline or deploy to a cloud VM",
+        "Set up cron/launchd/Cloud Scheduler to run daily",
+        "Verify: pipeline runs unattended on schedule"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-007",
+      "category": "observability",
+      "priority": 107,
+      "version": "backlog",
+      "description": "Observability dashboard (TypeScript) -- web UI showing pipeline stats, design statuses, and error rates",
+      "steps": [
+        "Build a TypeScript web app that reads from the SQLite database",
+        "Display: designs generated, approved/rejected ratio, published count, error rate",
+        "Verify: dashboard renders with live data from the pipeline DB"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-008",
+      "category": "notifications",
+      "priority": 108,
+      "version": "backlog",
+      "description": "Daily digest notifications -- Slack/Discord/email summary of pipeline activity",
+      "steps": [
+        "Implement notification module with Slack/Discord webhook or email support",
+        "Send daily summary: new designs, pending reviews, published count, errors",
+        "Verify: notification is sent with correct content"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-009",
+      "category": "review",
+      "priority": 109,
+      "version": "backlog",
+      "description": "Automated LLM design review -- Claude-based quality check before publishing",
+      "steps": [
+        "Implement LLM-based review that evaluates design quality, readability, and aesthetic appeal",
+        "Auto-approve, auto-reject, or flag for human review based on confidence",
+        "Verify: given a set of test designs, correctly categorizes quality levels"
+      ],
+      "passes": false
+    }
+  ]
+}

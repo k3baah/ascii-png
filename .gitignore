@@ -36,5 +36,12 @@ Thumbs.db
 *.swp
 *.swo
 
+# Environment
+.env
+.venv/
+
+# Database
+*.db
+
 # Claude
 .claude/

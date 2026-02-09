@@ -1,0 +1,38 @@
+# Sticker Factory — Progress Log
+
+## Session History
+
+### Session 1 — 2026-02-09
+- Created SPEC.md with full project requirements (interview-driven)
+- Created PRD.json with 9 v0 features + 9 backlog items
+- Created CLAUDE.md with session protocol + project overview
+- Created this progress file
+- Implemented ALL v0 features (v0-001 through v0-009) — all passing
+
+## v0 Feature Status (all complete)
+- v0-001: Project scaffold — package structure, config.yaml, requirements.txt
+- v0-002: Config loading — YAML + .env, get_config() with caching
+- v0-003: SQLite schema — designs table, CRUD helpers
+- v0-004: Data models — Design dataclass with from_row/to_dict
+- v0-005: Renderer — ASCII-to-PNG at print quality (font_size=300, white bg default)
+- v0-006: Color variations — render_variations() produces multiple color schemes
+- v0-007: CLI — `python -m sticker_factory render/publish` with click
+- v0-008: Printify API client — full client with live auth verified
+- v0-009: Publish command — uploads image, creates product, publishes to Etsy
+
+## Current State
+- All v0 features passing
+- Printify shop: PurplePixelsCo (ID: 25769339)
+- Sticker blueprints: 600 (Die-Cut), 400 (Kiss-Cut), 384 (Square), 811 (Holographic)
+- Provider: SPOKE Custom Products (ID: 1)
+- Config includes printify section with shop_id, blueprint_id, provider_id
+- Publish command has NOT been tested live against Printify (by design)
+- Next: backlog items (LLM ideation, ASCII gen, AI image gen, etc.)
+
+## Known Issues
+- Publish command not yet live-tested — need manual test run
+- No git commits yet for all the new code
+
+## Notes
+- Repo will be renamed from ascii-png to sticker-factory eventually
+- ascii2png.py kept as original proof of concept (not deleted)
