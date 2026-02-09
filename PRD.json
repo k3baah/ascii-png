@@ -306,6 +306,35 @@
         "Verify: published products have correct retail prices per size variant"
       ],
       "passes": false
+    },
+    {
+      "id": "backlog-014",
+      "category": "publishing",
+      "priority": 114,
+      "version": "backlog",
+      "description": "Switch kiss-cut sticker shipping provider from SPOKE to Printify Choice -- use Printify's recommended provider instead of hardcoded SPOKE (provider ID 1)",
+      "steps": [
+        "Look up the Printify Choice provider ID for kiss-cut stickers (blueprint 1268) via the catalog API",
+        "Update config.yaml default print_provider_id from 1 (SPOKE) to the Printify Choice provider ID",
+        "Update publish command to use the new provider and fetch its available variants",
+        "Verify: published products use the Printify Choice provider with correct variants and pricing"
+      ],
+      "passes": true
+    },
+    {
+      "id": "backlog-015",
+      "category": "publishing",
+      "priority": 115,
+      "version": "backlog",
+      "description": "Change default product mockup -- investigate Printify API for setting which mockup image is used as the primary listing image, and if supported, set it to the 3rd mockup",
+      "steps": [
+        "Research Printify API docs for mockup/image ordering on product listings (e.g. print_areas, images, or mockup endpoints)",
+        "Determine if mockup selection is controllable via the create/update product API",
+        "If supported, update publish command to set the 3rd mockup as the primary product image",
+        "Add config option for preferred mockup index so it's easily changeable",
+        "Verify: newly published products show the 3rd mockup as the primary listing image"
+      ],
+      "passes": false
     }
   ]
 }
