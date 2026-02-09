@@ -186,7 +186,7 @@ Operational run commands for this flow are documented in:
 |---|---|---|
 | id | INTEGER PK | Auto-increment |
 | design_key | TEXT | Stable logical identity for the active design variant (e.g. `vibe-coder::matrix`) |
-| concept_id | TEXT | References a concept JSON file (e.g. `vibe-coder`). NULL if no concept file. |
+| concept_id | TEXT | References a concept JSON file (e.g. `vibe-coder`). NULL only when render is run with explicit no-concept override. |
 | variation_name | TEXT | Color scheme name (e.g. `matrix`, `classic`). Together with concept_id, uniquely identifies a design. |
 | variation_fg | TEXT | Foreground color used for this render |
 | variation_bg | TEXT | Background color used for this render |
@@ -230,6 +230,7 @@ is_superseded=0            copy_state=ready
 ### Render behavior
 
 - `sticker render <ascii_file>` renders PNGs and **inserts one DB row per variation**.
+- **Concept required by default:** render expects a concept JSON file for new designs (`concepts/<ascii-stem>.json`). `--allow-no-concept` exists only as an escape hatch.
 - **Variation source precedence:** concept JSON `variations` field first; if absent, fall back to `config.yaml` global `color_schemes`.
 - **Concept auto-discovery:** infers `concept_id` from the ASCII filename (e.g. `designs/vibe-coder.txt` → `concepts/vibe-coder.json`). `--concept` flag overrides.
 - **Idempotent by default:** skips variations that already have an active row + PNG on disk.
@@ -288,7 +289,7 @@ sticker show <id>               # full detail on one row
 
 1. CLI flags (if render ever supports explicit `--variations`)
 2. Concept JSON `variations` field
-3. Global `config.yaml` `color_schemes` (fallback if no concept file)
+3. Global `config.yaml` `color_schemes` (fallback if concept has no `variations`, or if `--allow-no-concept` is used)
 
 ## Build Order
 

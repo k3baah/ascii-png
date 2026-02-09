@@ -13,7 +13,8 @@ Sticker Factory — autonomous pipeline for an Etsy print-on-demand sticker stor
 **Key constraints:**
 - v0 = ASCII-to-PNG only, no LLM steps yet
 - Print quality: 200-400px font, 2000-4000px output, white background default
-- Color variations: render same design in multiple color schemes from config
+- Every new ASCII design must have a matching concept file in `concepts/` (`designs/foo.txt` -> `concepts/foo.json`)
+- Color variations: concept `variations` preferred; config color schemes are fallback
 - Printify API key not yet set up — defer live API tests
 - Read `SPEC.md` before implementing anything
 

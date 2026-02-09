@@ -33,6 +33,15 @@ Legacy table is preserved as `designs_legacy_backup*`.
 
 ## Normal Daily Flow
 
+### 0. Create concept JSON (required)
+
+Every new design should have a concept file at:
+`concepts/<design-stem>.json`
+
+Example:
+- ASCII file: `designs/ship-it.txt`
+- Required concept file: `concepts/ship-it.json`
+
 ### 1. Render and register rows
 ```bash
 python -m sticker_factory render designs/vibe-coder.txt --output-dir exports/
@@ -40,10 +49,16 @@ python -m sticker_factory render designs/vibe-coder.txt --output-dir exports/
 
 Notes:
 - Concept auto-discovery: `designs/vibe-coder.txt` looks for `concepts/vibe-coder.json`
+- Render now requires a concept file by default.
 - Variation precedence: concept `variations` first, then `config.yaml` fallback
 - Re-render same design + supersede active rows:
 ```bash
 python -m sticker_factory render designs/vibe-coder.txt --output-dir exports/ --force
+```
+
+Emergency override (not recommended):
+```bash
+python -m sticker_factory render designs/quick-test.txt --allow-no-concept
 ```
 
 ### 2. Generate listing copy into DB

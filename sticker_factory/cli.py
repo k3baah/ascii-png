@@ -37,6 +37,12 @@ def sticker() -> None:
     help="Concept id override (default: auto-discover from ASCII filename).",
 )
 @click.option(
+    "--allow-no-concept",
+    is_flag=True,
+    default=False,
+    help="Allow rendering without a concept JSON (not recommended).",
+)
+@click.option(
     "--force",
     is_flag=True,
     default=False,
@@ -47,6 +53,7 @@ def render(
     output_dir: str,
     name: str | None,
     concept: str | None,
+    allow_no_concept: bool,
     force: bool,
 ) -> None:
     """Render an ASCII art file to print-ready PNGs in all color variations."""
@@ -86,6 +93,16 @@ def render(
     else:
         concept_data = discover_concept_for_ascii(ascii_path)
         concept_id = concept_data["id"] if concept_data else None
+
+    if concept_data is None and not allow_no_concept:
+        inferred_id = concept if concept else ascii_path.stem
+        expected_path = concept_path_for_id(inferred_id)
+        click.echo(
+            "Concept JSON is required for new renders. "
+            f"Expected: {expected_path}. "
+            "Create the concept file or pass --allow-no-concept."
+        )
+        raise SystemExit(1)
 
     if concept_data and concept_data.get("variations"):
         color_schemes = [
