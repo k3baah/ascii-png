@@ -68,6 +68,67 @@ def render(ascii_file: str, output_dir: str, name: str | None) -> None:
 
 
 @sticker.command()
+@click.argument("paths", nargs=-1, required=True, type=click.Path(exists=True))
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    default=False,
+    help="Regenerate copy even if a sidecar file already exists.",
+)
+def copywrite(paths: tuple[str, ...], overwrite: bool) -> None:
+    """Generate Etsy listing copy (title, description, tags) for sticker PNGs.
+
+    Accepts one or more PNG files or directories. Writes a .copy.json sidecar
+    next to each image.
+    """
+    from sticker_factory.copywriter import (
+        find_concept,
+        generate_copy,
+        read_sidecar,
+        write_sidecar,
+    )
+
+    png_files: list[Path] = []
+    for p in paths:
+        path = Path(p)
+        if path.is_dir():
+            png_files.extend(sorted(path.glob("*.png")))
+        elif path.suffix.lower() == ".png":
+            png_files.append(path)
+        else:
+            click.echo(f"Skipping non-PNG: {path}")
+
+    if not png_files:
+        click.echo("No PNG files found.")
+        raise SystemExit(1)
+
+    click.echo(f"Processing {len(png_files)} image(s)...")
+    for png_path in png_files:
+        if not overwrite and read_sidecar(png_path) is not None:
+            click.echo(f"  {png_path.name}: sidecar exists, skipping (use --overwrite)")
+            continue
+
+        concept = find_concept(png_path)
+        if concept:
+            click.echo(f"  {png_path.name}: found concept '{concept.get('id')}', generating copy...")
+        else:
+            click.echo(f"  {png_path.name}: no concept file found, generating copy from image only...")
+
+        try:
+            copy = generate_copy(png_path, concept=concept)
+        except Exception as exc:
+            click.echo(f"    ERROR: {exc}")
+            continue
+
+        sidecar = write_sidecar(png_path, copy)
+        click.echo(f"    Title: {copy['title']}")
+        click.echo(f"    Tags:  {', '.join(copy['tags'][:5])}...")
+        click.echo(f"    Saved: {sidecar}")
+
+    click.echo("Done.")
+
+
+@sticker.command()
 @click.argument("png_file", type=click.Path(exists=True, dir_okay=False))
 @click.option(
     "--title",
@@ -107,20 +168,31 @@ def publish(
     etsy: bool,
 ) -> None:
     """Upload a PNG sticker design to Printify. Use --etsy to also publish to Etsy."""
+    from sticker_factory.copywriter import read_sidecar
     from sticker_factory.db import init_db, insert_design, update_design
     from sticker_factory.publisher import PrintifyClient
 
     png_path = Path(png_file)
 
-    # --- Defaults -----------------------------------------------------------
+    # --- Defaults: sidecar > filename-derived > generic ---------------------
+    sidecar = read_sidecar(png_path)
+
     if title is None:
-        title = png_path.stem.replace("_", " ").replace("-", " ").title()
+        if sidecar and sidecar.get("title"):
+            title = sidecar["title"]
+            click.echo(f"Using title from sidecar: {title}")
+        else:
+            title = png_path.stem.replace("_", " ").replace("-", " ").title()
 
     if description is None:
-        description = (
-            f"<p>High-quality die-cut sticker printed on durable vinyl.</p>"
-            f"<p>{title} -- perfect for laptops, water bottles, and notebooks.</p>"
-        )
+        if sidecar and sidecar.get("description"):
+            description = sidecar["description"]
+            click.echo("Using description from sidecar.")
+        else:
+            description = (
+                f"<p>High-quality die-cut sticker printed on durable vinyl.</p>"
+                f"<p>{title} -- perfect for laptops, water bottles, and notebooks.</p>"
+            )
 
     cfg = get_config()
     printify_cfg = cfg.get("printify", {})

@@ -14,6 +14,8 @@ rendering:
     - { name: "classic", fg: "white", bg: "black" }
     - { name: "matrix", fg: "#00ff00", bg: "transparent" }
     - { name: "sunset", fg: "#ff6b35", bg: "transparent" }
+copywriting:
+  model: "claude-sonnet-4-5-20250929"
 printify:
   shop_id: "25769339"
   default_blueprint_id: 400        # Kiss-Cut Stickers

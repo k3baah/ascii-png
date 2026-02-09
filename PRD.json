@@ -246,6 +246,53 @@
         "Verify: given a set of test designs, correctly categorizes quality levels"
       ],
       "passes": false
+    },
+    {
+      "id": "backlog-010",
+      "category": "publishing",
+      "priority": 110,
+      "version": "backlog",
+      "description": "Listing copy generation -- Claude generates title + description from sticker image, stored as sidecar JSON",
+      "steps": [
+        "Add `sticker copywrite <dir-or-glob>` CLI command that batch-processes PNGs",
+        "For each image, send to Claude with a prompt requesting title, description, and tags optimised for Etsy SEO",
+        "Write output to sidecar JSON file next to each PNG (e.g. vibe-coder_matrix.copy.json)",
+        "Update `sticker publish` to read sidecar copy if present and use it for --title and --description",
+        "Support bulk publish: `sticker publish <dir-or-glob>` publishes all PNGs using their sidecar copy",
+        "Verify: copywrite produces valid sidecar JSON, publish reads it correctly"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-011",
+      "category": "publishing",
+      "priority": 111,
+      "version": "backlog",
+      "description": "Migrate listing copy from sidecar JSON to DB -- store title, description, tags as columns on designs table",
+      "steps": [
+        "Add listing_title, listing_description, listing_tags columns to designs table",
+        "Update copywrite command to write to DB instead of (or in addition to) sidecar files",
+        "Update publish command to read copy from DB",
+        "Migrate any existing sidecar JSON data into DB",
+        "Verify: round-trip from copywrite to publish works via DB"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-012",
+      "category": "pipeline",
+      "priority": 112,
+      "version": "backlog",
+      "description": "Concept files -- shared context that grows through the pipeline (ideate -> generate -> render -> copywrite)",
+      "steps": [
+        "Define concept JSON format: id, brief, style, keywords, ascii_file, variations[]",
+        "Create concepts/ directory, concept files named {design-name}.json",
+        "Update `sticker render` to auto-populate variations in the concept file after rendering",
+        "Update `sticker copywrite` to auto-discover concept file for a PNG and pass context to Claude",
+        "When backlog-001/002 (LLM ideation/generation) are built, they create concept files as output",
+        "Verify: render populates variations, copywrite uses concept context in generated copy"
+      ],
+      "passes": false
     }
   ]
 }
