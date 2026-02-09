@@ -461,7 +461,11 @@ def sync_products() -> None:
 
     client = PrintifyClient()
     click.echo(f"Fetching products from Printify shop {shop_id}...")
-    products = client.list_all_products(shop_id)
+    try:
+        products = client.list_all_products(shop_id)
+    except Exception as exc:
+        click.echo(f"Error fetching products from Printify: {exc}")
+        raise SystemExit(1)
     live_product_ids = {
         str(product.get("id"))
         for product in products
@@ -577,7 +581,11 @@ def publish(
     client = PrintifyClient()
 
     click.echo(f"Fetching variants for blueprint {blueprint_id}...")
-    raw_variants = client.get_provider_variants(blueprint_id, print_provider_id)
+    try:
+        raw_variants = client.get_provider_variants(blueprint_id, print_provider_id)
+    except Exception as exc:
+        click.echo(f"Error fetching variants from Printify: {exc}")
+        raise SystemExit(1)
 
     # Filter variants by surface type, set retail prices from config
     variants = []
