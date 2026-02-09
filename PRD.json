@@ -248,56 +248,117 @@
       "passes": false
     },
     {
-      "id": "backlog-010",
-      "category": "publishing",
+      "id": "dbflow-001",
+      "category": "database",
       "priority": 110,
-      "version": "backlog",
-      "description": "Listing copy generation -- Claude generates title + description from sticker image, stored as sidecar JSON",
+      "version": "dbflow",
+      "description": "v2 schema migration -- move to one-row-per-PNG with separate copy/publish state and safe legacy backfill",
       "steps": [
-        "Add `sticker copywrite <dir-or-glob>` CLI command that batch-processes PNGs",
-        "For each image, send to Claude with a prompt requesting title, description, and tags optimised for Etsy SEO",
-        "Write output to sidecar JSON file next to each PNG (e.g. vibe-coder_matrix.copy.json)",
-        "Update `sticker publish` to read sidecar copy if present and use it for --title and --description",
-        "Support bulk publish: `sticker publish <dir-or-glob>` publishes all PNGs using their sidecar copy",
-        "Verify: copywrite produces valid sidecar JSON, publish reads it correctly"
+        "Create a v2 designs schema with columns: design_key, concept_id, variation_name, variation_fg, variation_bg, png_path, png_path_canonical, ascii_file_path, listing_title, listing_description, listing_tags (JSON), copy_state, copy_revision, publish_state, published_copy_revision, is_superseded, printify_product_id, etsy_listing_url, last_error, created_at, updated_at",
+        "Add active-row uniqueness with partial indexes: UNIQUE(design_key) WHERE is_superseded=0 and UNIQUE(png_path_canonical) WHERE is_superseded=0 AND png_path_canonical IS NOT NULL",
+        "Implement safe migration: rename legacy designs table to backup, create v2 table, backfill one row per PNG from legacy data, preserve timestamps, and only then switch reads/writes to v2",
+        "Update models.py Design dataclass and db.py helpers (insert_design, get_design, update_design, list_designs) to validate copy_state (missing|ready|error) and publish_state (never|uploaded|published|deleted|error)",
+        "Ensure migration is idempotent and keeps old rows as backup until verification is complete",
+        "Verify: migration runs cleanly on legacy DB, no row loss, CRUD + uniqueness behavior work on v2 schema"
       ],
-      "passes": false
+      "passes": true
     },
     {
-      "id": "backlog-011",
-      "category": "publishing",
-      "priority": 111,
-      "version": "backlog",
-      "description": "Migrate listing copy from sidecar JSON to DB -- store title, description, tags as columns on designs table",
-      "steps": [
-        "Add listing_title, listing_description, listing_tags columns to designs table",
-        "Update copywrite command to write to DB instead of (or in addition to) sidecar files",
-        "Update publish command to read copy from DB",
-        "Migrate any existing sidecar JSON data into DB",
-        "Verify: round-trip from copywrite to publish works via DB"
-      ],
-      "passes": false
-    },
-    {
-      "id": "backlog-012",
+      "id": "dbflow-002",
       "category": "pipeline",
-      "priority": 112,
-      "version": "backlog",
-      "description": "Concept files -- shared context that grows through the pipeline (ideate -> generate -> render -> copywrite)",
+      "priority": 111,
+      "version": "dbflow",
+      "description": "Concept files -- human-editable JSON files in concepts/ that define creative direction and variation color schemes",
       "steps": [
-        "Define concept JSON format: id, brief, style, keywords, ascii_file, variations[]",
-        "Create concepts/ directory, concept files named {design-name}.json",
-        "Update `sticker render` to auto-populate variations in the concept file after rendering",
-        "Update `sticker copywrite` to auto-discover concept file for a PNG and pass context to Claude",
-        "When backlog-001/002 (LLM ideation/generation) are built, they create concept files as output",
-        "Verify: render populates variations, copywrite uses concept context in generated copy"
+        "Define concept JSON format: { id, brief, style, keywords, ascii_file, variations: [{scheme, fg, bg}] }",
+        "Create concepts/ directory with concept files named {design-name}.json",
+        "Concept files are human-editable input; DB references them via concept_id but does not duplicate content",
+        "Verify: concept files load correctly and variations array is parseable"
+      ],
+      "passes": false
+    },
+    {
+      "id": "dbflow-003",
+      "category": "rendering",
+      "priority": 112,
+      "version": "dbflow",
+      "description": "Render → DB integration -- render inserts one DB row per variation with concept auto-discovery and idempotency",
+      "steps": [
+        "Update `sticker render` to insert one DB row per variation (copy_state=missing, publish_state=never, png_path, png_path_canonical, concept_id, variation_name/fg/bg, design_key)",
+        "Concept auto-discovery: infer concept_id from ASCII filename (e.g. designs/vibe-coder.txt → concepts/vibe-coder.json). --concept flag overrides",
+        "Variation source precedence: concept JSON variations field first, fall back to config.yaml global color_schemes",
+        "Idempotent by default: skip variations that already have an active DB row + PNG on disk",
+        "--force flag: re-render all variations, mark prior active rows is_superseded=1, insert fresh active rows",
+        "Verify: render creates correct DB rows, re-render without --force is a no-op, --force supersedes old rows"
+      ],
+      "passes": false
+    },
+    {
+      "id": "dbflow-004",
+      "category": "publishing",
+      "priority": 113,
+      "version": "dbflow",
+      "description": "DB-first copywrite -- listing copy generation writes directly to DB with revision tracking",
+      "steps": [
+        "Update `sticker copywrite` to write listing_title, listing_description, listing_tags to DB row, set copy_state=ready, and increment copy_revision",
+        "Copywrite must not mutate publish_state (published rows remain published unless explicitly republished)",
+        "Support two input modes: file paths/directories (look up active DB row by png_path_canonical) and --no-copy filter (process rows where copy_state=missing)",
+        "Retire sidecar writes and add `sticker migrate-sidecars --dry-run|--apply` to import existing .copy.json content into DB without LLM regeneration",
+        "Verify: copywrite updates copy fields/revision correctly and sidecar migration imports existing copy deterministically"
+      ],
+      "passes": false
+    },
+    {
+      "id": "dbflow-005",
+      "category": "publishing",
+      "priority": 114,
+      "version": "dbflow",
+      "description": "DB-first publish -- publish reads listing copy from DB, requires copy, supports batch mode",
+      "steps": [
+        "Update `sticker publish` to read png_path, listing_title, listing_description, listing_tags from DB row (no sidecar fallback)",
+        "Refuse to publish unless copy_state=ready and listing_title/listing_description are present; print 'run copywrite first' error",
+        "Input modes: `sticker publish --ready` batch-publishes rows where copy_state=ready AND publish_state=never AND is_superseded=0; `sticker publish <id>` publishes a specific row",
+        "Add optional `--republish` mode for rows already in publish_state uploaded/published",
+        "Update row on publish: set printify_product_id, etsy_listing_url, publish_state (uploaded or published), and published_copy_revision=copy_revision",
+        "--etsy/--no-etsy flag controls whether to push to Etsy (default: Printify only)",
+        "Verify: publish reads from DB, rejects rows without copy, batch mode works"
+      ],
+      "passes": false
+    },
+    {
+      "id": "dbflow-006",
+      "category": "cli",
+      "priority": 115,
+      "version": "dbflow",
+      "description": "CLI inspection commands -- sticker list and sticker show for browsing design state in the DB",
+      "steps": [
+        "Add `sticker list` command: table of all images showing id, concept, variation, copy_state, publish_state, is_superseded",
+        "Add `sticker list --no-copy` filter: rows where copy_state=missing",
+        "Add `sticker list --unpublished` filter: rows where publish_state!=published",
+        "Add `sticker list --needs-republish` filter: rows where copy_revision > published_copy_revision",
+        "Add `sticker show <id>` command: full detail on one row",
+        "Verify: list and show display correct data with filters working"
+      ],
+      "passes": false
+    },
+    {
+      "id": "dbflow-007",
+      "category": "publishing",
+      "priority": 116,
+      "version": "dbflow",
+      "description": "Printify sync -- on-demand command to reconcile DB with current Printify product state",
+      "steps": [
+        "Add `sticker sync` command that fetches current products from Printify API",
+        "Reconcile with DB: for active rows with printify_product_id, set publish_state=deleted when product no longer exists on Printify",
+        "Not run automatically; user invokes when needed",
+        "Verify: sync detects removed products and updates DB accordingly"
       ],
       "passes": false
     },
     {
       "id": "backlog-013",
       "category": "publishing",
-      "priority": 113,
+      "priority": 201,
       "version": "backlog",
       "description": "Variant pricing configuration -- set retail prices per variant size in config, apply during publish",
       "steps": [
@@ -310,7 +371,7 @@
     {
       "id": "backlog-014",
       "category": "publishing",
-      "priority": 114,
+      "priority": 202,
       "version": "backlog",
       "description": "Switch kiss-cut sticker shipping provider from SPOKE to Printify Choice -- use Printify's recommended provider instead of hardcoded SPOKE (provider ID 1)",
       "steps": [
@@ -324,7 +385,7 @@
     {
       "id": "backlog-015",
       "category": "publishing",
-      "priority": 115,
+      "priority": 203,
       "version": "backlog",
       "description": "Change default product mockup -- investigate Printify API for setting which mockup image is used as the primary listing image, and if supported, set it to the 3rd mockup",
       "steps": [
@@ -334,7 +395,7 @@
         "Add config option for preferred mockup index so it's easily changeable",
         "Verify: newly published products show the 3rd mockup as the primary listing image"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }
