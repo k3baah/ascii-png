@@ -447,6 +447,51 @@ def show_design_row(design_id: int) -> None:
     click.echo(json.dumps(row, indent=2, sort_keys=True))
 
 
+@sticker.command("sync")
+def sync_products() -> None:
+    """Reconcile DB publish_state against current products on Printify."""
+    from sticker_factory.db import init_db, list_designs, update_design
+    from sticker_factory.publisher import PrintifyClient
+
+    init_db()
+
+    cfg = get_config()
+    printify_cfg = cfg.get("printify", {})
+    shop_id = printify_cfg.get("shop_id", "25769339")
+
+    client = PrintifyClient()
+    click.echo(f"Fetching products from Printify shop {shop_id}...")
+    products = client.list_all_products(shop_id)
+    live_product_ids = {
+        str(product.get("id"))
+        for product in products
+        if isinstance(product, dict) and product.get("id") is not None
+    }
+
+    rows = list_designs(is_superseded=0)
+    candidates = [row for row in rows if row.get("printify_product_id")]
+    updated = 0
+    unchanged = 0
+
+    for row in candidates:
+        row_id = int(row["id"])
+        product_id = str(row["printify_product_id"])
+        if product_id in live_product_ids:
+            unchanged += 1
+            continue
+
+        if row.get("publish_state") != "deleted":
+            update_design(row_id, publish_state="deleted", last_error=None)
+            click.echo(f"  id={row_id}: product {product_id} missing, marked deleted")
+            updated += 1
+        else:
+            unchanged += 1
+
+    click.echo(
+        f"Sync complete. Checked={len(candidates)}, marked_deleted={updated}, unchanged={unchanged}."
+    )
+
+
 @sticker.command()
 @click.argument("design_id", required=False, type=int)
 @click.option(

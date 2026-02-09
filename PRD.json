@@ -353,7 +353,7 @@
         "Not run automatically; user invokes when needed",
         "Verify: sync detects removed products and updates DB accordingly"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "backlog-013",
