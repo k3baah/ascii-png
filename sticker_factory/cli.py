@@ -77,15 +77,30 @@ def render(ascii_file: str, output_dir: str, name: str | None) -> None:
     "--blueprint-id",
     default=None,
     type=int,
-    help="Printify blueprint ID (default: from config, typically 600 for die-cut stickers).",
+    help="Printify blueprint ID (default: from config).",
+)
+@click.option(
+    "--surface",
+    default="White",
+    show_default=True,
+    type=click.Choice(["White", "Transparent"], case_sensitive=False),
+    help="Sticker surface type.",
+)
+@click.option(
+    "--etsy/--no-etsy",
+    default=False,
+    show_default=True,
+    help="Also publish to Etsy (default: Printify only).",
 )
 def publish(
     png_file: str,
     title: str | None,
     description: str | None,
     blueprint_id: int | None,
+    surface: str,
+    etsy: bool,
 ) -> None:
-    """Publish a PNG sticker design to Printify and list it on Etsy."""
+    """Upload a PNG sticker design to Printify. Use --etsy to also publish to Etsy."""
     from sticker_factory.db import init_db, insert_design, update_design
     from sticker_factory.publisher import PrintifyClient
 
@@ -122,12 +137,15 @@ def publish(
     click.echo(f"Fetching variants for blueprint {blueprint_id}...")
     raw_variants = client.get_provider_variants(blueprint_id, print_provider_id)
 
-    # Enable all variants at default pricing
+    # Filter variants by surface type and enable them
     variants = []
     all_variant_ids = []
     for v in raw_variants:
         vid = v.get("id")
         if vid is None:
+            continue
+        v_surface = v.get("options", {}).get("surface", "")
+        if v_surface.lower() != surface.lower():
             continue
         all_variant_ids.append(vid)
         variants.append(
@@ -179,21 +197,27 @@ def publish(
     product_id = product["id"]
     click.echo(f"  Product created (ID: {product_id})")
 
-    # --- Step 5: Publish product to Etsy ------------------------------------
-    click.echo("Publishing product to Etsy...")
-    client.publish_product(shop_id, product_id)
-    click.echo("  Product published!")
+    # --- Step 5: Optionally publish to Etsy ----------------------------------
+    status = "uploaded"
+    if etsy:
+        click.echo("Publishing product to Etsy...")
+        client.publish_product(shop_id, product_id)
+        click.echo("  Product published to Etsy!")
+        status = "published"
+    else:
+        click.echo("  Product created on Printify (not published to Etsy).")
+        click.echo("  Use --etsy flag to also publish to Etsy.")
 
     # --- Step 6: Store in DB ------------------------------------------------
     design_id = insert_design(
         concept_title=title,
         png_file_paths=[str(png_path.resolve())],
-        status="published",
+        status=status,
         printify_product_id=str(product_id),
     )
     click.echo(f"  Design saved to DB (ID: {design_id})")
 
     click.echo()
-    click.echo(f"Done! Product '{title}' is live.")
+    click.echo(f"Done! Product '{title}' on Printify.")
     click.echo(f"  Printify product ID: {product_id}")
     click.echo(f"  Design DB ID:        {design_id}")

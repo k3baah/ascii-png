@@ -13,6 +13,7 @@ VALID_STATUSES = {
     "pending_review",
     "approved",
     "rejected",
+    "uploaded",
     "published",
 }
 
