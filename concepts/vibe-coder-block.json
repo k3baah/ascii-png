@@ -1,0 +1,21 @@
+{
+  "id": "vibe-coder-block",
+  "brief": "Bold block-style ASCII typography reading 'VIBE CODER' with terminal-era hacker energy. Designed as a high-contrast dev-culture sticker for builders who ship software with AI copilots. Inspired by the splash screen you see when you first open Claude Code in the terminal. Vibe coding is the trend of building software entirely through LLM conversation — just vibes, no manual coding. This sticker celebrates that culture. IMPORTANT: 'Claude Code' MUST appear in the title — people search for 'Claude Code sticker'.",
+  "style": "thick block ASCII letters, retro terminal aesthetic, strong geometric forms",
+  "keywords": [
+    "vibe coder",
+    "developer",
+    "terminal",
+    "ascii art",
+    "Claude Code",
+    "AI coding"
+  ],
+  "ascii_file": "designs/vibe-coder-block.txt",
+  "bridge_radius": 60,
+  "variations": [
+    { "scheme": "sunset", "fg": "#ff6b35", "bg": "transparent" },
+    { "scheme": "cherry", "fg": "#cc2244", "bg": "transparent" },
+    { "scheme": "ocean", "fg": "#1e90ff", "bg": "transparent" },
+    { "scheme": "violet", "fg": "#8a2be2", "bg": "transparent" }
+  ]
+}

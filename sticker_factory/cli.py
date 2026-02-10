@@ -514,7 +514,7 @@ def sync_products() -> None:
 
 
 @sticker.command()
-@click.argument("design_id", required=False, type=int)
+@click.argument("design_ids", nargs=-1, type=int)
 @click.option(
     "--ready",
     "publish_ready",
@@ -548,7 +548,7 @@ def sync_products() -> None:
     help="Also publish to Etsy (default: Printify only).",
 )
 def publish(
-    design_id: int | None,
+    design_ids: tuple[int, ...],
     publish_ready: bool,
     republish: bool,
     blueprint_id: int | None,
@@ -559,14 +559,14 @@ def publish(
     from sticker_factory.db import get_design, init_db, list_designs, update_design
     from sticker_factory.publisher import PrintifyClient
 
-    if publish_ready and design_id is not None:
-        click.echo("Use either a specific <design_id> or --ready, not both.")
+    if publish_ready and design_ids:
+        click.echo("Use either specific <design_ids> or --ready, not both.")
         raise SystemExit(1)
-    if not publish_ready and design_id is None:
-        click.echo("Provide <design_id> or use --ready for batch publish.")
+    if not publish_ready and not design_ids:
+        click.echo("Provide one or more <design_ids> or use --ready for batch publish.")
         raise SystemExit(1)
     if publish_ready and republish:
-        click.echo("--republish is only supported with a specific <design_id>.")
+        click.echo("--republish is only supported with specific <design_ids>.")
         raise SystemExit(1)
 
     init_db()
@@ -580,11 +580,13 @@ def publish(
             click.echo("No ready rows found for batch publish.")
             return
     else:
-        row = get_design(design_id)
-        if row is None:
-            click.echo(f"Design id {design_id} not found.")
-            raise SystemExit(1)
-        rows = [row]
+        rows = []
+        for did in design_ids:
+            row = get_design(did)
+            if row is None:
+                click.echo(f"Design id {did} not found.")
+                raise SystemExit(1)
+            rows.append(row)
 
     cfg = get_config()
     printify_cfg = cfg.get("printify", {})

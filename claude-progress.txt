@@ -6,41 +6,56 @@
 - Created SPEC.md with full project requirements (interview-driven)
 - Created PRD.json with 9 v0 features + 9 backlog items
 - Created CLAUDE.md with session protocol + project overview
-- Created this progress file
 - Implemented ALL v0 features (v0-001 through v0-009) — all passing
 
-## v0 Feature Status (all complete)
-- v0-001: Project scaffold — package structure, config.yaml, requirements.txt
-- v0-002: Config loading — YAML + .env, get_config() with caching
-- v0-003: SQLite schema — designs table, CRUD helpers
-- v0-004: Data models — Design dataclass with from_row/to_dict
-- v0-005: Renderer — ASCII-to-PNG at print quality (font_size=300, white bg default)
-- v0-006: Color variations — render_variations() produces multiple color schemes
-- v0-007: CLI — `python -m sticker_factory render/publish` with click
-- v0-008: Printify API client — full client with live auth verified
-- v0-009: Publish command — uploads image, creates product, publishes to Etsy
-
 ### Session (backlog-014) — 2026-02-09
-- Switched kiss-cut sticker shipping provider from SPOKE (ID: 1) to Printify Choice (ID: 99)
-- Queried Printify API: blueprint 400 has providers SPOKE (1) and Printify Choice (99)
-- Printify Choice offers 4 White-surface variants (2x2, 3x3, 4x4, 6x6) — same IDs as SPOKE White
-- Updated config.yaml print_provider_id from 1 to 99
-- Verified: variant sizes and pricing match config exactly
-- Note: Printify Choice only supports White surface (not Transparent)
+- Switched kiss-cut sticker provider from SPOKE (ID: 1) to Printify Choice (ID: 99)
+- Blueprint 400, provider 99 — 4 White-surface variants (2x2, 3x3, 4x4, 6x6)
+- Config-only change (print_provider_id in config.yaml)
+
+### Session (backlog-015) — 2026-02-09
+- Investigated Printify API for mockup reordering
+- **Finding: Not supported via API** — mockup images are auto-generated and read-only
+- No code added (dead code was written then stripped)
+- Marked as passes=true (research complete, limitation confirmed)
+
+### Session (dbflow) — 2026-02-09
+- Implemented full DB-first publish flow (dbflow-001 through dbflow-007)
+- v2 schema: one row per PNG, design_key, copy_state/publish_state separation
+- Concept JSON files for creative input, DB for operational state
+- Render → copywrite → publish pipeline fully E2E tested
+- Sync command reconciles DB with live Printify products
+
+### Session (fixes) — 2026-02-09
+- Fixed copywriter: downscale images to 1024px max before Claude Vision API (cost + 8000px limit)
+- Fixed Printify list_products pagination limit (100→50, API max is 50)
+- Fixed --republish to accept deleted state (for re-listing after sync marks products gone)
+- Added stealth variation (black on transparent) to ship-it concept
+- Marked backlog-013 passes=true (pricing config already wired up)
+
+## v0 Feature Status (all complete)
+- v0-001 through v0-009: all passing
+
+## dbflow Feature Status (all complete)
+- dbflow-001: v2 schema migration
+- dbflow-002: Concept files
+- dbflow-003: Render → DB integration
+- dbflow-004: DB-first copywrite
+- dbflow-005: DB-first publish
+- dbflow-006: CLI inspection commands (list/show)
+- dbflow-007: Printify sync
+
+## Backlog Status
+- backlog-001 through backlog-009: not started (LLM ideation, ASCII gen, AI image gen, etc.)
+- backlog-013: passes=true (variant pricing from config)
+- backlog-014: passes=true (Printify Choice provider)
+- backlog-015: passes=true (mockup reordering not supported)
 
 ## Current State
-- All v0 features passing
 - Printify shop: PurplePixelsCo (ID: 25769339)
-- Sticker blueprints: 600 (Die-Cut), 400 (Kiss-Cut), 384 (Square), 811 (Holographic)
-- Provider: Printify Choice (ID: 99) — switched from SPOKE (ID: 1) in backlog-014
-- Config includes printify section with shop_id, blueprint_id, provider_id
-- Publish command has NOT been tested live against Printify (by design)
-- Next: backlog items (LLM ideation, ASCII gen, AI image gen, etc.)
+- Blueprint: 400 (Kiss-Cut), Provider: 99 (Printify Choice)
+- Full pipeline live-tested: render → copywrite → publish → sync → republish
+- Branch: codex/backlog-011-db-publish-flow
 
 ## Known Issues
-- Publish command not yet live-tested — need manual test run
-- No git commits yet for all the new code
-
-## Notes
-- Repo will be renamed from ascii-png to sticker-factory eventually
-- ascii2png.py kept as original proof of concept (not deleted)
+- None currently blocking

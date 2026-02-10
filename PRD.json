@@ -366,7 +366,7 @@
         "Update publish command to match Printify variants to config prices by size",
         "Verify: published products have correct retail prices per size variant"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "backlog-014",
@@ -396,6 +396,35 @@
         "Verify: newly published products show the 3rd mockup as the primary listing image"
       ],
       "passes": true
+    },
+    {
+      "id": "backlog-016",
+      "category": "rendering",
+      "priority": 204,
+      "version": "backlog",
+      "description": "Auto bridge radius -- automatically determine the optimal bridge_radius value per design so gap-fill works without manual tuning",
+      "steps": [
+        "Analyze the rendered ASCII image to detect inter-character gap sizes (e.g. measure median transparent-run width between opaque clusters)",
+        "Compute a candidate bridge_radius from the gap metric (half the median gap width, or similar heuristic) so the MaxFilter kernel just seals character spacing without over-filling",
+        "Add a `--bridge-auto` flag to `sticker render` that uses the computed radius instead of the concept/config value",
+        "Optionally emit the chosen radius to stdout or write it back to the concept JSON so future renders are deterministic",
+        "Verify: auto radius produces gap-fill results equivalent to a manually tuned value across multiple designs with different fonts/densities"
+      ],
+      "passes": false
+    },
+    {
+      "id": "backlog-017",
+      "category": "publishing",
+      "priority": 205,
+      "version": "backlog",
+      "description": "Multi-ID publish -- accept multiple design IDs in a single publish command (e.g. `sticker publish 51 52 53`)",
+      "steps": [
+        "Change `sticker publish` design_id argument from a single int to variadic (nargs=-1) so multiple IDs are accepted",
+        "Look up each ID, halt with error if any are missing before starting uploads",
+        "Update validation: --ready and --republish interact with multiple IDs the same way they do with a single ID",
+        "Verify: `sticker publish 1 2 3` publishes all three rows; missing ID in the list aborts cleanly"
+      ],
+      "passes": false
     }
   ]
 }
