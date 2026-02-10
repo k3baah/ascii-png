@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 from pathlib import Path
 
 import anthropic
+from PIL import Image
 
 from sticker_factory.config import get_config
+from sticker_factory.concepts import load_concept
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +80,12 @@ def find_concept(image_path: Path) -> dict | None:
     best_len = 0
 
     for concept_file in concepts_dir.glob("*.json"):
-        with open(concept_file) as f:
-            concept = json.load(f)
+        try:
+            concept = load_concept(concept_file)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.warning("Skipping invalid concept file %s: %s", concept_file, exc)
+            continue
+
         concept_id = concept.get("id", concept_file.stem)
         if stem.startswith(concept_id) and len(concept_id) > best_len:
             best_match = concept
@@ -126,11 +133,29 @@ def generate_copy(image_path: Path, concept: dict | None = None) -> dict:
             "No Anthropic API key. Set ANTHROPIC_API_KEY in .env."
         )
 
-    with open(image_path, "rb") as f:
-        image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+    # Downscale for Claude Vision — only needs to see the design, not full print res
+    max_dim = 1024
+    with Image.open(image_path) as opened:
+        if max(opened.size) > max_dim:
+            scale = max_dim / max(opened.size)
+            new_size = (
+                max(1, int(round(opened.width * scale))),
+                max(1, int(round(opened.height * scale))),
+            )
+            logger.info(
+                "Resizing %s from %s to %s for API",
+                image_path.name,
+                opened.size,
+                new_size,
+            )
+            img = opened.resize(new_size, Image.LANCZOS)
+        else:
+            img = opened.copy()
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    image_data = base64.standard_b64encode(buf.getvalue()).decode("utf-8")
 
-    suffix = image_path.suffix.lower()
-    media_type = "image/png" if suffix == ".png" else f"image/{suffix.lstrip('.')}"
+    media_type = "image/png"
 
     user_prompt = _build_user_prompt(concept)
 

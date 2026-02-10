@@ -7,55 +7,63 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-VALID_STATUSES = (
-    "ideated",
-    "generated",
-    "rendered",
-    "pending_review",
-    "approved",
-    "rejected",
-    "published",
-)
+VALID_COPY_STATES = ("missing", "ready", "error")
+VALID_PUBLISH_STATES = ("never", "uploaded", "published", "deleted", "error")
 
 
 @dataclass
 class Design:
-    """Mirrors the designs table in SQLite."""
+    """Mirrors the v2 designs table in SQLite."""
 
     id: int | None = None
-    concept_title: str = ""
-    concept_brief: str = ""
-    ascii_art: str = ""
-    ascii_file_path: str = ""
-    png_file_paths: list[str] = field(default_factory=list)
-    colors: list[dict[str, Any]] = field(default_factory=list)
-    status: str = "ideated"
+    design_key: str = ""
+    concept_id: str | None = None
+    variation_name: str | None = None
+    variation_fg: str | None = None
+    variation_bg: str | None = None
+    png_path: str | None = None
+    png_path_canonical: str | None = None
+    ascii_file_path: str | None = None
+    listing_title: str | None = None
+    listing_description: str | None = None
+    listing_tags: list[str] = field(default_factory=list)
+    copy_state: str = "missing"
+    copy_revision: int = 0
+    publish_state: str = "never"
+    published_copy_revision: int = 0
+    is_superseded: int = 0
     printify_product_id: str | None = None
     etsy_listing_url: str | None = None
+    last_error: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
-
-    # ------------------------------------------------------------------
-    # Serialization helpers
-    # ------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
         """Return a plain dict suitable for DB insertion or JSON export.
 
-        JSON-typed fields (png_file_paths, colors) are serialized to JSON
-        strings so they can be stored directly in SQLite TEXT/JSON columns.
+        JSON-typed fields are serialized so they can be stored in SQLite TEXT.
         """
         return {
             "id": self.id,
-            "concept_title": self.concept_title,
-            "concept_brief": self.concept_brief,
-            "ascii_art": self.ascii_art,
+            "design_key": self.design_key,
+            "concept_id": self.concept_id,
+            "variation_name": self.variation_name,
+            "variation_fg": self.variation_fg,
+            "variation_bg": self.variation_bg,
+            "png_path": self.png_path,
+            "png_path_canonical": self.png_path_canonical,
             "ascii_file_path": self.ascii_file_path,
-            "png_file_paths": json.dumps(self.png_file_paths),
-            "colors": json.dumps(self.colors),
-            "status": self.status,
+            "listing_title": self.listing_title,
+            "listing_description": self.listing_description,
+            "listing_tags": json.dumps(self.listing_tags),
+            "copy_state": self.copy_state,
+            "copy_revision": self.copy_revision,
+            "publish_state": self.publish_state,
+            "published_copy_revision": self.published_copy_revision,
+            "is_superseded": self.is_superseded,
             "printify_product_id": self.printify_product_id,
             "etsy_listing_url": self.etsy_listing_url,
+            "last_error": self.last_error,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -64,7 +72,7 @@ class Design:
     def from_row(cls, row: Any) -> Design:
         """Construct a Design from a sqlite3.Row, dict, or tuple.
 
-        JSON-typed columns are deserialized back into Python lists.
+        JSON-typed columns are deserialized back into Python objects.
         """
         if hasattr(row, "keys"):
             # sqlite3.Row or dict-like
@@ -72,15 +80,25 @@ class Design:
         elif isinstance(row, (list, tuple)):
             keys = [
                 "id",
-                "concept_title",
-                "concept_brief",
-                "ascii_art",
+                "design_key",
+                "concept_id",
+                "variation_name",
+                "variation_fg",
+                "variation_bg",
+                "png_path",
+                "png_path_canonical",
                 "ascii_file_path",
-                "png_file_paths",
-                "colors",
-                "status",
+                "listing_title",
+                "listing_description",
+                "listing_tags",
+                "copy_state",
+                "copy_revision",
+                "publish_state",
+                "published_copy_revision",
+                "is_superseded",
                 "printify_product_id",
                 "etsy_listing_url",
+                "last_error",
                 "created_at",
                 "updated_at",
             ]
@@ -88,12 +106,13 @@ class Design:
         else:
             d = dict(row)
 
-        # Deserialize JSON fields
-        for key in ("png_file_paths", "colors"):
-            val = d.get(key)
-            if isinstance(val, str):
-                d[key] = json.loads(val)
-            elif val is None:
-                d[key] = []
+        val = d.get("listing_tags")
+        if isinstance(val, str):
+            try:
+                d["listing_tags"] = json.loads(val)
+            except json.JSONDecodeError:
+                d["listing_tags"] = []
+        elif val is None:
+            d["listing_tags"] = []
 
         return cls(**d)

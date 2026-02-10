@@ -19,7 +19,7 @@ copywriting:
 printify:
   shop_id: "25769339"
   default_blueprint_id: 400        # Kiss-Cut Stickers
-  print_provider_id: 1             # SPOKE Custom Products
+  print_provider_id: 99            # Printify Choice
   pricing:                         # Retail prices in cents, keyed by size
     '2" × 2"': 499
     '3" × 3"': 599

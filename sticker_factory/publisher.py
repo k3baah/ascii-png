@@ -235,6 +235,47 @@ class PrintifyClient:
         )
         return product
 
+    def list_products(self, shop_id: str, page: int = 1, limit: int = 50) -> dict | list:
+        """Fetch one page of products for a Printify shop."""
+        resp = self._get(f"shops/{shop_id}/products.json?page={page}&limit={limit}")
+        data = resp.json()
+        logger.info(
+            "Fetched products page %d for shop %s (type=%s)",
+            page,
+            shop_id,
+            type(data).__name__,
+        )
+        return data
+
+    def list_all_products(self, shop_id: str, limit: int = 50) -> list[dict]:
+        """Fetch all products in a Printify shop, handling pagination."""
+        page = 1
+        products: list[dict] = []
+
+        while True:
+            payload = self.list_products(shop_id=shop_id, page=page, limit=limit)
+
+            if isinstance(payload, list):
+                products.extend(payload)
+                break
+
+            page_items = payload.get("data", []) if isinstance(payload, dict) else []
+            if isinstance(page_items, list):
+                products.extend(page_items)
+
+            if not isinstance(payload, dict):
+                break
+
+            current_page = int(payload.get("current_page", page))
+            last_page = int(payload.get("last_page", current_page))
+            if current_page >= last_page or not page_items:
+                break
+
+            page = current_page + 1
+
+        logger.info("Fetched %d total product(s) for shop %s", len(products), shop_id)
+        return products
+
     def publish_product(self, shop_id: str, product_id: str) -> dict:
         """Publish a product to the connected sales channel (e.g. Etsy).
 

@@ -1,0 +1,20 @@
+{
+  "id": "ship-it",
+  "brief": "Bold monospace ASCII typography reading 'SHIP IT' for developer culture. Celebrates shipping features, release day momentum, and terminal-first builder energy.",
+  "style": "retro terminal typography, high-contrast, clean block letters",
+  "keywords": [
+    "ship it",
+    "developer",
+    "release day",
+    "terminal",
+    "ascii art",
+    "programmer gift"
+  ],
+  "ascii_file": "designs/ship-it.txt",
+  "variations": [
+    { "scheme": "classic", "fg": "white", "bg": "black" },
+    { "scheme": "stealth", "fg": "black", "bg": "transparent" },
+    { "scheme": "matrix", "fg": "#00ff00", "bg": "transparent" },
+    { "scheme": "sunset", "fg": "#ff6b35", "bg": "transparent" }
+  ]
+}
